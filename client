@@ -1,0 +1,47 @@
+# initiate protocol by creating a TCP socket connection to server
+import sys, socket
+
+s = socket.socket(AF_INET, SOCK_STREAM)
+
+# determine connection based on given arguments
+args = sys.argv[1:]
+
+if args.len > 3 {
+	port = sys.argv[1]
+} else {
+	port = 27993
+}
+
+hostname = sys.argv[3]
+neuid = sys.argv[4]
+
+# send HELLO to server
+s.send("cs3700fall2020 HELLO " + neuid + "\n")
+	
+# read FIND from server
+data = ""
+
+data = data + s.recv(1024).decode("utf-8")
+while "\n" != data[-1]:
+	data = data + s.recv(1024).decode("utf-8")
+
+datalist = data.split(" ")
+
+# count number of times given symbol appears in random string
+sym = 0
+
+for x in datalist[3]:
+	if x == datalist[2]:
+		sym ++
+
+#send the count
+s.send("cs3700fall2020 COUNT " + sym + "\n")
+
+# read BYE from server and print
+bye = bye + s.recv(1024).decode("utf-8")
+while "\n" != bye[-1]:
+	bye = bye + s.recv(1024).decode("utf-8")
+
+print(bye)
+
+

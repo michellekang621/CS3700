@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+import socket, urllib.parse, argparse, os
+from urllib.parse import urlparse
+
+BUFFER = 8192
+
+parse = argparse.ArgumentParser()
+parse.add_argument('operation', action='store', type=str)
+parse.add_argument('params', action='store', nargs = argparse.REMAINDER)
+args = parse.parse_args()
+operation = args.operation
+print(args)
+
+def fileReading(file):
+    with open(file) as f:
+        data = f.readlines()
+    msg = ''
+    for x in data:
+        msg += x
+    print(msg)
+    msgbytes = msg.encode('utf-8')
+    sendToData(msgbytes)
+    f.close()
+
+def fileWriting(file, data):
+    with open(file, "w") as f:
+        data = f.write(data)
+    f.close()
+
+def sendToData(data):
+    d.sendall(data)
+
+def sendToControl(cmdstr):
+    cmdbyte = cmdstr.encode('utf-8')
+    c.sendall(cmdbyte)
+
+def toFtp():
+    url = args.params[0]
+    parsed = urlparse(url)
+    return parsed.scheme != "ftp"
+
+def fromFtp():
+    url = args.params[0]
+    parsed = urlparse(url)
+    return parsed.scheme == "ftp"
+
+def cRecv():
+    msg = ''
+    part = c.recv(BUFFER)
+    msg = part.decode('utf-8')
+    while "\n" != msg[len(msg) - 1]:
+        part = c.recv(8192)
+        add = part.decode("utf-8")
+        msg = msg + add
+    print(msg)
+    return msg
+
+def dRecv():
+    msg = ''
+    part = d.recv(BUFFER)
+    msg = part.decode('utf-8')
+    while "\n" != msg[len(msg) - 1]:
+        part = d.recv(8192)
+        add = part.decode("utf-8")
+        msg = msg + add
+    print(msg)
+    return msg
+
+def getIp(data):
+    last = data.split(" ")
+    print(last)
+    nums = last[4].split(",")
+    print(nums)
+    nums[0] = nums[0][1:len(nums[0])]
+    lastnum = nums[5].split(")")
+    nums[5] = lastnum[0]
+    print(nums[0])
+    print(nums[5])
+    ip = ".".join(nums[0:4])
+    print(ip)
+    return ip
+
+def getPort(data):
+    last = data.split(" ")
+    nums = last[4].split(",")
+    nums[0] = nums[0][1:len(nums[0])]
+    lastnum = nums[5].split(")")
+    nums[5] = lastnum[0]
+    topPort = int(nums[4])
+    bottomPort = int(nums[5])
+    portNum = (topPort * 256) + bottomPort
+    print(portNum)
+    return portNum
+
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as c:
+
+    # find out which argument is the url to connect to the FTP and set that as url
+    if (len(args.params) > 1):
+        url1p = urlparse(args.params[0])
+        if (url1p.scheme == "ftp"):
+            url = args.params[0]
+        else:
+            url = args.params[1]
+    else:
+        url = args.params[0]
+
+
+    # parse the ftp URL
+    urlp = urlparse(url)
+    if (urlp.port!= None):
+        port = urlp.port
+    else:
+        port = 21
+
+    hostname = urlp.hostname
+    path = urlp.path
+
+    c.connect((hostname, port))
+    cRecv()
+
+    # login to FTP server 
+    if (urlp.username != None and urlp.password != None):
+        sendToControl("USER " + urlp.username + "\r\n")
+        cRecv()
+        sendToControl("PASS " + urlp.password + "\r\n")
+        cRecv()
+    else:                                                                                                                                              
+        sendToControl("USER\r\n")
+        cRecv()
+
+    # FTP server setup
+    sendToControl("TYPE I\r\n")
+    cRecv()
+    sendToControl("MODE S\r\n")
+    cRecv()
+    sendToControl("STRU F\r\n")
+    cRecv()
+
+    if (operation == "ls" or operation == "cp" or operation == "mv"):
+
+        # connect to data channel
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as d:
+            sendToControl("PASV\r\n")
+            data = cRecv()
+            ip = getIp(data)
+            port = getPort(data)
+            d.connect((str(ip), int(port)))
+
+            if (operation == "ls"):
+                sendToControl("LIST " + path + "\r\n")
+                cRecv()
+                dRecv()
+
+            elif (operation == "cp"):
+                if (toFtp()):
+                    print(args.params[0])
+                    sendToControl("STOR " + args.params[0] + "\r\n")
+                    cRecv()
+                    fileReading(args.params[0])
+                    d.close()
+                elif (fromFtp()):
+                    sendToControl("RETR " + path + "\r\n")
+                    cRecv()
+                    data = dRecv()
+                    fileWriting(path[1:], data)
+
+            elif (operation == "mv"):
+                if (toFtp()):
+                    sendToControl("STOR " + args.params[0] + "\r\n")
+                    cRecv()
+                    fileReading(args.params[0])
+                    d.close()
+                    os.remove(args.params[0])
+                elif (fromFtp()):
+                    #unsure abt order of this
+                    sendToControl("RETR " + path + "\r\n")
+                    cRecv()
+                    data = dRecv()
+                    fileWriting(path[1:], data)
+                    sendToControl("DELE " + path + "\r\n")
+                    cRecv()
+
+    elif (operation == "mkdir"):
+        sendToControl("MKD " + path + "\r\n")
+        cRecv()
+
+    elif (operation == "rm"):
+        sendToControl("DELE " + path + "\r\n")
+        cRecv()
+
+    elif (operation == "rmdir"):
+        sendToControl("RMD " + path + "\r\n")
+        cRecv()
+
+    sendToControl("QUIT\r\n")
+
+
+
+
+
+
+
+

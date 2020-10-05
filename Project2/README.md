@@ -1,0 +1,6 @@
+The biggest challenge I faced was actually an easy fix and had to do with how I was sending the path of the files that I wanted to manipulate to the FTP server. The high level approach that I took was that first opened the control channel, and then based on the operation input of the user, I would either open the data channel or not. There were some challenges with reading and writing files, but they weren't too hard to figure out as python's methods for those were somewhat simple. 
+I was able to test my code by running all the possible operations with the server both with copying/moving from and to the server. 
+
+I created a few helper functions to make the code more understandable, but the main operations are all running within the same place so that the code can be understood by reading it top to bottom in terms of when the connections (more specifically the channels) were being opened and closed.
+
+I made a large use of the urllib.parse, socket, and argparse libraries. I also ended up using os to be able to remove files from my local directories.
